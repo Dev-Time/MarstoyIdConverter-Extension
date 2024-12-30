@@ -2,13 +2,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusText = document.getElementById('status-text');
     const convertBtn = document.getElementById('convert-btn');
 
-    convertBtn.addEventListener('click', function () {
-        statusText.textContent = 'Updating...';
+    // Function to update the status text
+    function updateStatus(message) {
+        statusText.textContent = message;
+    }
 
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.tabs.executeScript(tabs[0].id, { file: 'content.js' }, () => {
-                statusText.textContent = 'Update complete!';
-            });
+    // Handle the Convert button click
+    convertBtn.addEventListener('click', function () {
+        updateStatus('Updating...');
+
+        // Send a message to the background service worker
+        chrome.runtime.sendMessage({ action: 'convert' }, (response) => {
+            if (response && response.status) {
+                updateStatus(response.status);
+            } else {
+                updateStatus('Update failed.');
+            }
         });
     });
 });

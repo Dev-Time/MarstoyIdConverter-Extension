@@ -1,7 +1,8 @@
 (function () {
-    const apiKey = 'YOUR-API-KEY-FROM-REBRICKABLE'; // Replace with your actual API key
-    const debugMode = false; // Enable debug logs for now to test
+    const API_KEY = 'YOUR_REBRICKABLE_API_KEY_HERE'; // Replace with your actual Rebrickable API key
+    const debugMode = false; // Set to true to enable debug logs
 
+    // Function to log debug messages
     function logDebug(message, data = null) {
         if (debugMode) {
             const timestamp = new Date().toISOString();
@@ -10,67 +11,66 @@
     }
 
     // Function to reverse the ID (excluding the 'M') and fetch product data from Rebrickable API
-async function fetchRebrickableData(productId) {
-    const normalizedProductId = productId.toUpperCase(); // Normalize the productId
-    logDebug(`Normalized product ID: ${normalizedProductId}`);
+    async function fetchRebrickableData(productId) {
+        const normalizedProductId = productId.toUpperCase(); // Normalize the productId
+        logDebug(`Normalized product ID: ${normalizedProductId}`);
 
-    // Check if product ID exists in cache
-    const cachedData = await getCacheItem(normalizedProductId);
-    logCacheMetrics(cachedData);
+        // Check if product ID exists in cache
+        const cachedData = await getCacheItem(normalizedProductId);
+        logCacheMetrics();
 
-    if (cachedData) {
-        logDebug(`Cache hit for product ID: ${normalizedProductId}`, cachedData);
-        return cachedData; // Return cached data
-    } else {
-        logDebug(`Cache miss for product ID: ${normalizedProductId}`);
-    }
-
-    // Proceed with fetching data from the API
-    const reversedId = productId.slice(1).split('').reverse().join(''); // Remove 'M' and reverse the string
-    logDebug(`Reversed ID for Rebrickable lookup: ${reversedId}`);
-
-    const url = `https://rebrickable.com/api/v3/lego/sets/${reversedId}-1/`;
-    logDebug(`Rebrickable API URL: ${url}`);
-
-    const startTime = performance.now(); // Log network request start time
-
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `key ${apiKey}` // Use the hardcoded API key
-            }
-        });
-
-        const endTime = performance.now(); // Log network request end time
-        logDebug(`Network request completed in ${(endTime - startTime).toFixed(2)} ms`);
-
-        if (response.ok) {
-            const data = await response.json();
-            if (data && data.name) {
-                const productName = data.name.trim();
-                const productImageUrl = data.set_img_url;
-                logDebug(`Product name found on Rebrickable: ${productName}`);
-                logDebug(`Product image URL: ${productImageUrl}`);
-
-                // Cache the fetched data using the normalized productId
-                await setCacheItem(normalizedProductId, { name: productName, imageUrl: productImageUrl });
-
-                return { name: productName, imageUrl: productImageUrl };
-            } else {
-                logDebug(`Product name not found in Rebrickable data for product ID: ${normalizedProductId}`);
-            }
+        if (cachedData) {
+            logDebug(`Cache hit for product ID: ${normalizedProductId}`, cachedData);
+            return cachedData; // Return cached data
         } else {
-            logDebug(`Failed to fetch data from Rebrickable for product ID: ${normalizedProductId}`, response.statusText);
+            logDebug(`Cache miss for product ID: ${normalizedProductId}`);
         }
-    } catch (error) {
-        logDebug(`Error fetching data from Rebrickable for product ID: ${normalizedProductId}`, error);
+
+        // Proceed with fetching data from the API
+        const reversedId = productId.slice(1).split('').reverse().join(''); // Remove 'M' and reverse the string
+        logDebug(`Reversed ID for Rebrickable lookup: ${reversedId}`);
+
+        const url = `https://rebrickable.com/api/v3/lego/sets/${reversedId}-1/`;
+        logDebug(`Rebrickable API URL: ${url}`);
+
+        const startTime = performance.now(); // Log network request start time
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `key ${API_KEY}` // Use the hardcoded API key
+                }
+            });
+
+            const endTime = performance.now(); // Log network request end time
+            logDebug(`Network request completed in ${(endTime - startTime).toFixed(2)} ms`);
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.name) {
+                    const productName = data.name.trim();
+                    const productImageUrl = data.set_img_url;
+                    logDebug(`Product name found on Rebrickable: ${productName}`);
+                    logDebug(`Product image URL: ${productImageUrl}`);
+
+                    // Cache the fetched data using the normalized productId
+                    await setCacheItem(normalizedProductId, { name: productName, imageUrl: productImageUrl });
+
+                    return { name: productName, imageUrl: productImageUrl };
+                } else {
+                    logDebug(`Product name not found in Rebrickable data for product ID: ${normalizedProductId}`);
+                }
+            } else {
+                logDebug(`Failed to fetch data from Rebrickable for product ID: ${normalizedProductId}`, response.statusText);
+            }
+        } catch (error) {
+            logDebug(`Error fetching data from Rebrickable for product ID: ${normalizedProductId}`, error);
+        }
+
+        return null; // Return null if data could not be fetched
     }
-
-    return null; // Return null if data could not be fetched
-}
-
 
     // Function to get a specific product from the cache
     function getCacheItem(productId) {
@@ -127,7 +127,6 @@ async function fetchRebrickableData(productId) {
         });
     }
 
-
     // Function to update product title and image
     async function updateProductTitleAndImage(productTitleElement, productId) {
         logDebug(`Updating product with ID: ${productId}`);
@@ -172,14 +171,21 @@ async function fetchRebrickableData(productId) {
 
         if (productTitleElement && productIdElement) {
             const productIdText = productTitleElement.textContent.trim();
-            const productId = productIdText.match(/M\d+/)[0];
-            logDebug(`Product ID found: ${productId}`);
-            updateProductTitleAndImage(productTitleElement, productId);
+            const productIdMatch = productIdText.match(/M\d+/);
+            const productId = productIdMatch ? productIdMatch[0] : null;
+
+            if (productId) {
+                logDebug(`Product ID found: ${productId}`);
+                updateProductTitleAndImage(productTitleElement, productId);
+            } else {
+                logDebug('Product ID not found in title text.');
+            }
         } else {
             logDebug('Product ID or title element not found.');
         }
     }
 
+    // Function to process product listing pages
     function processProductListingPage() {
         logDebug('Processing product listing page...');
         const productTitleElements = document.querySelectorAll('a.product-snippet__title-normal');
@@ -207,6 +213,7 @@ async function fetchRebrickableData(productId) {
         });
     }
 
+    // Function to process wishlist pages
     function processWishlistPage() {
         logDebug('Processing wishlist page...');
         const productTitleElements = document.querySelectorAll('p.p-text-wish_desc');
@@ -227,11 +234,26 @@ async function fetchRebrickableData(productId) {
     }
 
     // Determine which page type we're on and process accordingly
-    if (document.querySelector('h1.product-info__header_title.dj_skin_product_title')) {
-        processProductPage();
-    } else if (document.querySelector('p.p-text-wish_desc')) {
-        processWishlistPage();
-    } else {
-        processProductListingPage();
+    function determineAndProcessPage() {
+        if (document.querySelector('h1.product-info__header_title.dj_skin_product_title')) {
+            processProductPage();
+        } else if (document.querySelector('p.p-text-wish_desc')) {
+            processWishlistPage();
+        } else {
+            processProductListingPage();
+        }
     }
+
+    // Listen for messages from the background service worker
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'convert') {
+            logDebug('Manual conversion triggered.');
+            determineAndProcessPage();
+            sendResponse({ status: 'Update complete!' });
+        }
+    });
+
+    // Initiate the automatic conversion on page load
+    determineAndProcessPage();
+
 })();
