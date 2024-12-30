@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Marstoy Id Converter",
   "version": "2.0.0",
-  "description": "Automatically updates product titles on Marstoy by checking against Rebrickable.",
+  "description": "Updates product titles on Marstoy by checking against Rebrickable.",
   "permissions": [
     "activeTab",
     "scripting",
