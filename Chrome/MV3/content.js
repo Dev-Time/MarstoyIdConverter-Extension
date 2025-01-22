@@ -1,7 +1,8 @@
 (function () {
-    const apiKey = 'YOUR-API-KEY-FROM-REBRICKABLE'; // Replace with your actual API key
-    const debugMode = false; // Enable debug logs for now to test
+    const API_KEY = 'YOUR_REBRICKABLE_API_KEY_HERE'; // Replace with your actual Rebrickable API key
+    const debugMode = false; // Set to true to enable debug logs
 
+    // Function to log debug messages
     function logDebug(message, data = null) {
         if (debugMode) {
             const timestamp = new Date().toISOString();
@@ -16,7 +17,7 @@
 
         // Check if product ID exists in cache
         const cachedData = await getCacheItem(normalizedProductId);
-        logCacheMetrics(cachedData);
+        logCacheMetrics();
 
         if (cachedData) {
             logDebug(`Cache hit for product ID: ${normalizedProductId}`, cachedData);
@@ -39,7 +40,7 @@
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'Authorization': `key ${apiKey}` // Use the hardcoded API key
+                    'Authorization': `key ${API_KEY}` // Use the hardcoded API key
                 }
             });
 
@@ -72,58 +73,58 @@
     }
 
     // Function to get a specific product from the cache
-    async function getCacheItem(productId) {
-        if (typeof browser !== 'undefined' && browser.storage) {
-            try {
-                const result = await browser.storage.local.get(productId);
-                return result[productId] || null;
-            } catch (error) {
-                logDebug('Error getting cache item from storage:', error);
-                return null;
+    function getCacheItem(productId) {
+        return new Promise((resolve) => {
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                chrome.storage.local.get(productId, (result) => {
+                    if (chrome.runtime.lastError) {
+                        logDebug('Error getting cache item from storage:', chrome.runtime.lastError);
+                        resolve(null);
+                    } else {
+                        resolve(result[productId] || null);
+                    }
+                });
+            } else {
+                logDebug('chrome.storage.local is not available');
+                resolve(null); // Fallback for environments without chrome.storage.local
             }
-        } else {
-            logDebug('browser.storage.local is not available');
-            return null; // Fallback for environments without browser.storage.local
-        }
+        });
     }
 
     // Function to set a specific product in the cache
-    async function setCacheItem(productId, data) {
-        if (typeof browser !== 'undefined' && browser.storage) {
-            try {
-                await browser.storage.local.set({ [productId]: data });
-                logDebug(`Cache item for ${productId} successfully updated in browser.storage.local.`);
-            } catch (error) {
-                logDebug('Error setting cache item in storage:', error);
+    function setCacheItem(productId, data) {
+        return new Promise((resolve) => {
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                chrome.storage.local.set({ [productId]: data }, () => {
+                    if (chrome.runtime.lastError) {
+                        logDebug('Error setting cache item in storage:', chrome.runtime.lastError);
+                    } else {
+                        logDebug(`Cache item for ${productId} successfully updated in chrome.storage.local.`);
+                    }
+                    resolve();
+                });
+            } else {
+                logDebug('chrome.storage.local is not available');
+                resolve(); // Fallback for environments without chrome.storage.local
             }
-        } else {
-            logDebug('browser.storage.local is not available');
-        }
+        });
     }
 
     // Function to log cache metrics
-    async function logCacheMetrics() {
-        if (typeof browser !== 'undefined' && browser.storage) {
-            try {
-                const items = await browser.storage.local.get(null);
-                const productKeys = Object.keys(items).filter(key => key.startsWith('M'));
-                const itemCount = productKeys.length;
-                const cacheSizeInBytes = new Blob([JSON.stringify(items)]).size;
-                logDebug(`Cache contains ${itemCount} items, size: ${cacheSizeInBytes} bytes`);
+    function logCacheMetrics() {
+        chrome.storage.local.get(null, (items) => {
+            const productKeys = Object.keys(items).filter(key => key.startsWith('M'));
+            const itemCount = productKeys.length;
+            const cacheSizeInBytes = new Blob([JSON.stringify(items)]).size;
+            logDebug(`Cache contains ${itemCount} items, size: ${cacheSizeInBytes} bytes`);
 
-                // Optionally log actual bytes used by browser.storage.local
-                if (browser.storage.local.getBytesInUse) {
-                    const bytesInUse = await browser.storage.local.getBytesInUse(null);
-                    logDebug(`Storage currently using ${bytesInUse} bytes`);
-                }
+            // Optionally log actual bytes used by chrome.storage.local
+            chrome.storage.local.getBytesInUse(null, (bytesInUse) => {
+                logDebug(`Storage currently using ${bytesInUse} bytes`);
+            });
 
-                logDebug(`Cached data: ${JSON.stringify(items)}`);
-            } catch (error) {
-                logDebug('Error logging cache metrics:', error);
-            }
-        } else {
-            logDebug('browser.storage.local is not available');
-        }
+            logDebug(`Cached data: ${JSON.stringify(items)}`);
+        });
     }
 
     // Function to update product title and image
@@ -170,14 +171,21 @@
 
         if (productTitleElement && productIdElement) {
             const productIdText = productTitleElement.textContent.trim();
-            const productId = productIdText.match(/M\d+/)[0];
-            logDebug(`Product ID found: ${productId}`);
-            updateProductTitleAndImage(productTitleElement, productId);
+            const productIdMatch = productIdText.match(/M\d+/);
+            const productId = productIdMatch ? productIdMatch[0] : null;
+
+            if (productId) {
+                logDebug(`Product ID found: ${productId}`);
+                updateProductTitleAndImage(productTitleElement, productId);
+            } else {
+                logDebug('Product ID not found in title text.');
+            }
         } else {
             logDebug('Product ID or title element not found.');
         }
     }
 
+    // Function to process product listing pages
     function processProductListingPage() {
         logDebug('Processing product listing page...');
         const productTitleElements = document.querySelectorAll('a.product-snippet__title-normal');
@@ -205,6 +213,7 @@
         });
     }
 
+    // Function to process wishlist pages
     function processWishlistPage() {
         logDebug('Processing wishlist page...');
         const productTitleElements = document.querySelectorAll('p.p-text-wish_desc');
@@ -225,11 +234,26 @@
     }
 
     // Determine which page type we're on and process accordingly
-    if (document.querySelector('h1.product-info__header_title.dj_skin_product_title')) {
-        processProductPage();
-    } else if (document.querySelector('p.p-text-wish_desc')) {
-        processWishlistPage();
-    } else {
-        processProductListingPage();
+    function determineAndProcessPage() {
+        if (document.querySelector('h1.product-info__header_title.dj_skin_product_title')) {
+            processProductPage();
+        } else if (document.querySelector('p.p-text-wish_desc')) {
+            processWishlistPage();
+        } else {
+            processProductListingPage();
+        }
     }
+
+    // Listen for messages from the background service worker
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'convert') {
+            logDebug('Manual conversion triggered.');
+            determineAndProcessPage();
+            sendResponse({ status: 'Update complete!' });
+        }
+    });
+
+    // Initiate the automatic conversion on page load
+    determineAndProcessPage();
+
 })();
