@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Marstoy Id Converter",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Updates product titles on Marstoy by checking against Rebrickable.",
   "permissions": [
     "activeTab",
@@ -10,11 +10,17 @@
   ],
   "host_permissions": [
     "https://www.marstoy.net/*",
+    "https://marstoy.com/*",
+    "https://www.marstoy.com/*",
     "https://rebrickable.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.marstoy.net/*"],
+      "matches": [
+        "https://marstoy.com/*",
+        "https://www.marstoy.com/*",
+        "https://www.marstoy.net/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
