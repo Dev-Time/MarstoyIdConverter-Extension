@@ -1,6 +1,6 @@
 (function () {
-    const API_KEY = '3653f5d5f213d4bd6b08b4f951df7b6a'; // Replace with your actual Rebrickable API key
-    const debugMode = true; // Set to true to enable debug logs
+    const API_KEY = 'YOUR_API_KEY'; // Replace with your actual Rebrickable API key
+    const debugMode = false; // Set to true to enable debug logs
 
     // -------------------------
     // Logging
