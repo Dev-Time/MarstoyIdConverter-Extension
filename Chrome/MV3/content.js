@@ -370,13 +370,20 @@
         };
     }
 
+    let lastPathname = location.pathname;
+
     function observeDom() {
         const rerun = debounce(() => {
+            const pathChanged = location.pathname !== lastPathname;
+            if (pathChanged) {
+                lastPathname = location.pathname;
+            }
+
             const hasTargets = document.querySelector(
-                'li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title, .recommend-product-item-title, p.p-text-wish_desc'
+                'li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title, .recommend-product-item-title, p.p-text-wish_desc, h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title'
             );
-            if (hasTargets) {
-                logDebug('DOM changed: re-processing page elements');
+            if (pathChanged || hasTargets) {
+                logDebug('DOM or URL changed: re-processing page elements');
                 determineAndProcessPage();
             }
         }, 300);
