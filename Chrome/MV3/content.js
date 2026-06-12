@@ -139,28 +139,46 @@
     // -------------------------
     // DOM helpers
     // -------------------------
+    function getProductCardWrapper(node) {
+        if (!node) return null;
+        return node.closest('theme-product-card')
+            || node.closest('.block-product-card')
+            || node.closest('product-item')
+            || node.closest('.product-card-wrapper')
+            || node.closest('li.product-block')
+            || node;
+    }
+
+    function markAsProcessed(node) {
+        const card = getProductCardWrapper(node);
+        if (card) card.dataset.mstProcessed = '1';
+    }
+
+    function isProcessed(node) {
+        const card = getProductCardWrapper(node);
+        return !!(card && card.dataset.mstProcessed === '1');
+    }
+
     function findProductImageElementFromTitle(titleEl) {
-        const card = titleEl.closest('.product-card-wrapper') || titleEl.closest('li.product-block');
+        // Product detail page
+        if (titleEl.matches('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
+            return document.querySelector('img.media-gallery__image, .product-detail__media img, .product-single__photo img, img.product-featured-media');
+        }
+
+        const card = getProductCardWrapper(titleEl);
         if (!card) return null;
 
         // Primary target in new theme
-        let img = card.querySelector('a.card__media img');
+        let img = card.querySelector('img.block-product-image__image')
+            || card.querySelector('a.card__media img');
         if (img) return img;
 
         // Fallbacks across variants
         img = card.querySelector('img.collection-hero__image')
             || card.querySelector('.card__inner img')
+            || card.querySelector('.block-product-image__image-wrapper img')
             || card.querySelector('img');
         return img || null;
-    }
-
-    function markAsProcessed(node) {
-        const card = node.closest('.product-card-wrapper') || node.closest('li.product-block') || node;
-        if (card) card.dataset.mstProcessed = '1';
-    }
-    function isProcessed(node) {
-        const card = node.closest('.product-card-wrapper') || node.closest('li.product-block') || node;
-        return !!(card && card.dataset.mstProcessed === '1');
     }
 
     // -------------------------
@@ -205,7 +223,7 @@
     function processProductPage() {
         logDebug('Processing product page...');
         const productTitleElement = document.querySelector(
-            'h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title'
+            'h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title'
         );
         if (!productTitleElement) {
             logDebug('Product title element not found on product page.');
@@ -236,27 +254,49 @@
 
     function processProductListingPage() {
         logDebug('Processing product listing page...');
-        // New theme: titles are in h3.product__title; fallback to the visually-hidden text inside the link
-        const titles = document.querySelectorAll('h3.product__title');
-        const nodes = titles.length
-            ? titles
-            : document.querySelectorAll('.product-card-wrapper a.full-unstyled-link .visually-hidden');
+        const selectors = [
+            '.block-product-title',
+            'h3.product__title',
+            '.product-card-wrapper a.full-unstyled-link .visually-hidden'
+        ];
+        
+        let nodes = [];
+        for (const selector of selectors) {
+            const found = document.querySelectorAll(selector);
+            if (found.length > 0) {
+                nodes = Array.from(found);
+                break;
+            }
+        }
+        
+        if (nodes.length === 0) {
+            // Ultimate fallback
+            const cardSelector = 'theme-product-card, .block-product-card, product-item, .product-card-wrapper, li.product-block';
+            const cards = document.querySelectorAll(cardSelector);
+            if (cards.length > 0) {
+                nodes = Array.from(cards).map(card => {
+                    return card.querySelector('a[href*="/products/"]');
+                }).filter(el => el !== null);
+            }
+        }
 
         nodes.forEach((titleEl, index) => {
             if (isProcessed(titleEl)) return;
 
-            // Find the nearest product card and its product link
-            const card = titleEl.closest('.product-card-wrapper') || titleEl.closest('li.product-block') || document;
-            const link = card.querySelector('a.full-unstyled-link, a.card__media, a[href*="/products/"]');
+            const card = getProductCardWrapper(titleEl);
+            let link = null;
+            if (titleEl.tagName === 'A' && titleEl.href && titleEl.href.includes('/products/')) {
+                link = titleEl;
+            } else if (card) {
+                link = card.querySelector('a.full-unstyled-link, a.card__media, a.block-product-title, a[href*="/products/"]');
+            }
 
             let productId = null;
             if (link && link.href) {
-                // Handle /products/moc-m87077-... and /products/m87077-...
                 const m = link.href.match(/\/products\/(?:moc-)?m?(\d+)/i);
                 if (m) productId = `M${m[1]}`;
             }
 
-            // Fallback: if title contains "M87077" or "M 87077"
             if (!productId) {
                 const text = titleEl.textContent.trim();
                 const idMatch = text.match(/\bM\s?(\d+)\b/i);
@@ -290,7 +330,6 @@
                     .finally(() => markAsProcessed(element));
             } else {
                 logDebug(`No product ID found for wishlist item ${index}.`);
-                // element.textContent += ' (No ID found)'; // optional debug
             }
         });
     }
@@ -299,11 +338,11 @@
     // Page detection
     // -------------------------
     function determineAndProcessPage() {
-        if (document.querySelector('h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
+        if (document.querySelector('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
             processProductPage();
         } else if (document.querySelector('p.p-text-wish_desc')) {
             processWishlistPage();
-        } else if (document.querySelector('li.product-block, .product-card-wrapper, h3.product__title')) {
+        } else if (document.querySelector('li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title')) {
             processProductListingPage();
         } else {
             logDebug('Page type not recognized; defaulting to listing processing.');
@@ -324,7 +363,7 @@
 
     function observeDom() {
         const rerun = debounce(() => {
-            if (document.querySelector('li.product-block, .product-card-wrapper, h3.product__title')) {
+            if (document.querySelector('li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title')) {
                 logDebug('DOM changed: re-processing listing page');
                 processProductListingPage();
             }
