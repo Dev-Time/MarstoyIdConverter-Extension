@@ -142,6 +142,7 @@
             || node.closest('product-item')
             || node.closest('.product-card-wrapper')
             || node.closest('li.product-block')
+            || node.closest('.recommend-product-item')
             || node;
     }
 
@@ -166,7 +167,10 @@
 
         // Primary target in new theme
         let img = card.querySelector('img.block-product-image__image')
-            || card.querySelector('a.card__media img');
+            || card.querySelector('a.card__media img')
+            || card.querySelector('.recommend-product-item-image img')
+            || card.querySelector('.recommend-product-item-image-media img')
+            || card.querySelector('.recommend-product-item-image-wrapper img');
         if (img) return img;
 
         // Fallbacks across variants
@@ -253,6 +257,7 @@
         logDebug('Processing product listing page...');
         const selectors = [
             '.block-product-title',
+            '.recommend-product-item-title',
             'h3.product__title',
             '.product-card-wrapper a.full-unstyled-link .visually-hidden'
         ];
@@ -261,14 +266,13 @@
         for (const selector of selectors) {
             const found = document.querySelectorAll(selector);
             if (found.length > 0) {
-                nodes = Array.from(found);
-                break;
+                nodes = nodes.concat(Array.from(found));
             }
         }
         
         if (nodes.length === 0) {
             // Ultimate fallback
-            const cardSelector = 'theme-product-card, .block-product-card, product-item, .product-card-wrapper, li.product-block';
+            const cardSelector = 'theme-product-card, .block-product-card, product-item, .product-card-wrapper, li.product-block, .recommend-product-item';
             const cards = document.querySelectorAll(cardSelector);
             if (cards.length > 0) {
                 nodes = Array.from(cards).map(card => {
@@ -284,8 +288,10 @@
             let link = null;
             if (titleEl.tagName === 'A' && titleEl.href && titleEl.href.includes('/products/')) {
                 link = titleEl;
+            } else if (card && card.tagName === 'A' && card.href && card.href.includes('/products/')) {
+                link = card;
             } else if (card) {
-                link = card.querySelector('a.full-unstyled-link, a.card__media, a.block-product-title, a[href*="/products/"]');
+                link = card.querySelector('a.full-unstyled-link, a.card__media, a.block-product-title, a.recommend-product-item, a[href*="/products/"]');
             }
 
             let productId = null;
@@ -338,16 +344,18 @@
     // Page detection
     // -------------------------
     function determineAndProcessPage() {
+        // Run main product processor if applicable
         if (document.querySelector('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
             processProductPage();
-        } else if (document.querySelector('p.p-text-wish_desc')) {
-            processWishlistPage();
-        } else if (document.querySelector('li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title')) {
-            processProductListingPage();
-        } else {
-            logDebug('Page type not recognized; defaulting to listing processing.');
-            processProductListingPage();
         }
+        
+        // Run wishlist processor if applicable
+        if (document.querySelector('p.p-text-wish_desc')) {
+            processWishlistPage();
+        }
+        
+        // Always run listing processor to catch collection grids, search results, or recommendations
+        processProductListingPage();
     }
 
     // -------------------------
@@ -363,9 +371,12 @@
 
     function observeDom() {
         const rerun = debounce(() => {
-            if (document.querySelector('li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title')) {
-                logDebug('DOM changed: re-processing listing page');
-                processProductListingPage();
+            const hasTargets = document.querySelector(
+                'li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title, .recommend-product-item-title, p.p-text-wish_desc'
+            );
+            if (hasTargets) {
+                logDebug('DOM changed: re-processing page elements');
+                determineAndProcessPage();
             }
         }, 300);
 
