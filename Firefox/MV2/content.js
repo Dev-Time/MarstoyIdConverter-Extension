@@ -68,6 +68,43 @@
     // -------------------------
     // Rebrickable fetch
     // -------------------------
+    async function fetchFromRebrickable(id) {
+        const url = `https://rebrickable.com/api/v3/lego/sets/${id}-1/`;
+        logDebug(`Rebrickable API URL: ${url}`);
+        const startTime = performance.now();
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `key ${API_KEY}`
+                }
+            });
+            const endTime = performance.now();
+            logDebug(`Network request completed in ${(endTime - startTime).toFixed(2)} ms`);
+
+            if (!response.ok) {
+                logDebug(`Failed to fetch data from Rebrickable (${response.status}) for ID: ${id}`);
+                return null;
+            }
+
+            const data = await response.json();
+            if (data && data.name) {
+                return {
+                    name: String(data.name || '').trim(),
+                    imageUrl: data.set_img_url || '',
+                    set_num: data.set_num || '',
+                    year: data.year || '',
+                    num_parts: data.num_parts || '',
+                    set_url: data.set_url || ''
+                };
+            }
+        } catch (error) {
+            logDebug(`Error fetching from Rebrickable for ID: ${id}`, error);
+        }
+        return null;
+    }
+
     async function fetchRebrickableData(productId) {
         const normalizedProductId = productId.toUpperCase();
         logDebug(`Normalized product ID: ${normalizedProductId}`);
@@ -82,51 +119,22 @@
             logDebug(`Cache miss for product ID: ${normalizedProductId}`);
         }
 
-        // Reverse the numeric part (M12345 -> 54321)
-        const reversedId = productId.slice(1).split('').reverse().join('');
+        const digits = productId.slice(1);
+        let reversedId = digits.split('').reverse().join('');
         logDebug(`Reversed ID for Rebrickable lookup: ${reversedId}`);
 
-        const url = `https://rebrickable.com/api/v3/lego/sets/${reversedId}-1/`;
-        logDebug(`Rebrickable API URL: ${url}`);
+        let data = await fetchFromRebrickable(reversedId);
 
-        const startTime = performance.now();
+        // Fallback for import/Shopify bug where reversedId has an extra trailing '1' (e.g. 759971 instead of 75997)
+        if (!data && reversedId.length === 6 && !reversedId.startsWith('9') && reversedId.endsWith('1')) {
+            const fallbackReversedId = reversedId.slice(0, -1);
+            logDebug(`Attempting fallback Rebrickable lookup without trailing '1': ${fallbackReversedId}`);
+            data = await fetchFromRebrickable(fallbackReversedId);
+        }
 
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Authorization': `key ${API_KEY}`
-                }
-            });
-
-            const endTime = performance.now();
-            logDebug(`Network request completed in ${(endTime - startTime).toFixed(2)} ms`);
-
-            if (!response.ok) {
-                if (response.status === 429) {
-                    logDebug('Rebrickable rate-limited (429). Backing off for this product ID.');
-                } else {
-                    logDebug(`Failed to fetch data from Rebrickable (${response.status}) for product ID: ${normalizedProductId}`, response.statusText);
-                }
-                return null;
-            }
-
-            const data = await response.json();
-            if (data && data.name) {
-                const productName = String(data.name || '').trim();
-                const productImageUrl = data.set_img_url || '';
-                logDebug(`Product name found on Rebrickable: ${productName}`);
-                logDebug(`Product image URL: ${productImageUrl}`);
-
-                const payload = { name: productName, imageUrl: productImageUrl };
-                await setCacheItem(normalizedProductId, payload);
-                return payload;
-            } else {
-                logDebug(`Product name not found in Rebrickable data for product ID: ${normalizedProductId}`);
-            }
-        } catch (error) {
-            logDebug(`Error fetching data from Rebrickable for product ID: ${normalizedProductId}`, error);
+        if (data) {
+            await setCacheItem(normalizedProductId, data);
+            return data;
         }
 
         return null;
@@ -184,6 +192,65 @@
     // -------------------------
     // Update title + image
     // -------------------------
+    function injectLegoDescription(productId, rebrickableData) {
+        const infoDiv = document.querySelector('.product-detail__info');
+        if (!infoDiv) return;
+
+        let descContainer = document.getElementById('mst-lego-description');
+        if (!descContainer) {
+            descContainer = document.createElement('div');
+            descContainer.id = 'mst-lego-description';
+            descContainer.style.marginTop = '24px';
+            descContainer.style.padding = '20px';
+            descContainer.style.border = '1px solid #e5e7eb';
+            descContainer.style.borderRadius = '12px';
+            descContainer.style.backgroundColor = '#f9fafb';
+            descContainer.style.fontFamily = 'Inter, sans-serif';
+            descContainer.style.fontSize = '14px';
+            descContainer.style.color = '#374151';
+            descContainer.style.lineHeight = '1.6';
+            infoDiv.appendChild(descContainer);
+        }
+
+        const isNSeries = productId.toUpperCase().startsWith('N');
+        const setNum = rebrickableData.set_num || `${productId.slice(1).split('').reverse().join('')}-1`;
+        const year = rebrickableData.year || 'N/A';
+        const numParts = rebrickableData.num_parts || 'N/A';
+        const setUrl = rebrickableData.set_url || `https://rebrickable.com/sets/${setNum}/`;
+
+        const disclaimerHtml = isNSeries
+            ? `<div style="margin-top: 16px; padding: 12px 16px; border-radius: 8px; border: 1px solid #fecaca; background-color: #fef2f2; color: #991b1b; display: flex; align-items: flex-start; gap: 8px;">
+                <span style="font-size: 18px; line-height: 1;">⚠️</span>
+                <div>
+                    <strong style="display: block; font-weight: 700; margin-bottom: 2px;">Disclaimer (Basic Parts Only)</strong>
+                    This is an N-series Parts Pack. It contains basic building bricks only. Minifigures, stickers, printed parts, and paper instructions are NOT included.
+                </div>
+               </div>`
+            : `<div style="margin-top: 16px; padding: 12px 16px; border-radius: 8px; border: 1px solid #e5e7eb; background-color: #f3f4f6; color: #4b5563; display: flex; align-items: flex-start; gap: 8px;">
+                <span style="font-size: 18px; line-height: 1;">ℹ️</span>
+                <div>
+                    <strong style="display: block; font-weight: 700; margin-bottom: 2px;">Building Kit Info</strong>
+                    This is an M-series Building Toy Kit matching the original set design. Minifigures and stickers are generally included, but instructions may need to be downloaded.
+                </div>
+               </div>`;
+
+        descContainer.innerHTML = `
+            <div style="font-weight: 700; font-size: 16px; color: #111827; margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <span>🧱</span> Official LEGO® Set Information
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px;">
+                <div><strong>Lego Set:</strong> ${rebrickableData.name}</div>
+                <div><strong>Set Number:</strong> ${setNum}</div>
+                <div><strong>Year Released:</strong> ${year}</div>
+                <div><strong>Part Count:</strong> ${numParts} pcs</div>
+            </div>
+            <div style="margin-top: 8px;">
+                <a href="${setUrl}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; font-weight: 500;">View this set on Rebrickable</a>
+            </div>
+            ${disclaimerHtml}
+        `;
+    }
+
     async function updateProductTitleAndImage(productTitleElement, productId) {
         logDebug(`Updating product with ID: ${productId}`);
 
@@ -191,9 +258,12 @@
         const invalidKeywords = ["Plates", "Beams", "Bricks", "Miscellaneous"];
 
         if (rebrickableData && !invalidKeywords.some(keyword => rebrickableData.name.includes(keyword))) {
-            // Normalize whitespace in case the theme injects odd spacing
-            productTitleElement.textContent = rebrickableData.name.replace(/\s+/g, ' ').trim();
-            logDebug(`Updated product title to: ${rebrickableData.name}`);
+            const isNSeries = productId.toUpperCase().startsWith('N');
+            const suffix = isNSeries ? ' (Basic Parts Only)' : '';
+            const cleanName = rebrickableData.name.replace(/\s+/g, ' ').trim();
+            
+            productTitleElement.textContent = cleanName + suffix;
+            logDebug(`Updated product title to: ${cleanName}${suffix}`);
 
             const productImageElement =
                 findProductImageElementFromTitle(productTitleElement) ||
@@ -207,11 +277,15 @@
                     `${rebrickableData.imageUrl} 720w`,
                     `${rebrickableData.imageUrl} 800w`
                 ].join(', ');
-                productImageElement.alt = rebrickableData.name;
+                productImageElement.alt = cleanName + suffix;
                 productImageElement.style.objectFit = 'contain';
                 logDebug(`Updated product image to: ${rebrickableData.imageUrl}`);
             } else {
                 logDebug('Product image element not found or no image URL provided.');
+            }
+
+            if (productTitleElement.matches('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
+                injectLegoDescription(productId, rebrickableData);
             }
         } else {
             logDebug('No matching title found on Rebrickable or title seems incorrect.');
@@ -234,14 +308,20 @@
 
         // Prefer extracting the ID from the URL (e.g. /products/moc-m87077-parts-kit)
         const urlPath = location.pathname;
-        let match = urlPath.match(/\/products\/(?:moc-)?m?(\d+)/i);
-        let productId = match ? `M${match[1]}` : null;
+        let match = urlPath.match(/\/products\/(?:moc-)?([a-z])?(\d+)/i);
+        let productId = null;
+        if (match) {
+            const prefix = match[1] ? match[1].toUpperCase() : 'M';
+            productId = `${prefix}${match[2]}`;
+        }
 
         // Fallback: scan text on page if needed
         if (!productId) {
             const text = `${productTitleElement.textContent} ${document.body.innerText}`;
-            const idMatch = text.match(/\bM\s?(\d+)\b/i);
-            if (idMatch) productId = `M${idMatch[1]}`;
+            const idMatch = text.match(/\b([A-Z])\s?(\d+)\b/i);
+            if (idMatch) {
+                productId = `${idMatch[1].toUpperCase()}${idMatch[2]}`;
+            }
         }
 
         if (productId) {
@@ -296,14 +376,19 @@
 
             let productId = null;
             if (link && link.href) {
-                const m = link.href.match(/\/products\/(?:moc-)?m?(\d+)/i);
-                if (m) productId = `M${m[1]}`;
+                const m = link.href.match(/\/products\/(?:moc-)?([a-z])?(\d+)/i);
+                if (m) {
+                    const prefix = m[1] ? m[1].toUpperCase() : 'M';
+                    productId = `${prefix}${m[2]}`;
+                }
             }
 
             if (!productId) {
                 const text = titleEl.textContent.trim();
-                const idMatch = text.match(/\bM\s?(\d+)\b/i);
-                if (idMatch) productId = `M${idMatch[1]}`;
+                const idMatch = text.match(/\b([A-Z])\s?(\d+)\b/i);
+                if (idMatch) {
+                    productId = `${idMatch[1].toUpperCase()}${idMatch[2]}`;
+                }
             }
 
             if (productId) {
@@ -327,10 +412,10 @@
             if (isProcessed(element)) return;
 
             const productIdText = element.textContent.trim();
-            const productIdMatch = productIdText.match(/M\d+/);
+            const productIdMatch = productIdText.match(/[a-z]\d+/i);
 
             if (productIdMatch) {
-                const productId = productIdMatch[0];
+                const productId = productIdMatch[0].toUpperCase();
                 logDebug(`Product ID found for wishlist item ${index}: ${productId}`);
                 Promise.resolve(updateProductTitleAndImage(element, productId))
                     .finally(() => markAsProcessed(element));
@@ -369,19 +454,23 @@
         };
     }
 
-    let lastPathname = location.pathname;
+    let lastHref = location.href;
 
     function observeDom() {
         const rerun = debounce(() => {
-            const pathChanged = location.pathname !== lastPathname;
-            if (pathChanged) {
-                lastPathname = location.pathname;
+            const urlChanged = location.href !== lastHref;
+            if (urlChanged) {
+                lastHref = location.href;
+                logDebug('URL changed (SPA transition): clearing processed markers');
+                document.querySelectorAll('[data-mst-processed]').forEach(el => {
+                    delete el.dataset.mstProcessed;
+                });
             }
 
             const hasTargets = document.querySelector(
                 'li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title, .recommend-product-item-title, p.p-text-wish_desc, h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title'
             );
-            if (pathChanged || hasTargets) {
+            if (urlChanged || hasTargets) {
                 logDebug('DOM or URL changed: re-processing page elements');
                 determineAndProcessPage();
             }
