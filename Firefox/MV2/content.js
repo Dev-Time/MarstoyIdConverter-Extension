@@ -204,6 +204,7 @@
                     `${rebrickableData.imageUrl} 800w`
                 ].join(', ');
                 productImageElement.alt = rebrickableData.name;
+                productImageElement.style.objectFit = 'contain';
                 logDebug(`Updated product image to: ${rebrickableData.imageUrl}`);
             } else {
                 logDebug('Product image element not found or no image URL provided.');
