@@ -323,7 +323,7 @@
 
         // Fallback: scan text on page if needed
         if (!productId) {
-            const text = `${productTitleElement.textContent} ${document.body.innerText}`;
+            const text = `${productTitleElement.textContent} ${document.body.textContent}`;
             const idMatch = text.match(/\b([A-Z])\s?(\d+)\b/i);
             if (idMatch) {
                 productId = `${idMatch[1].toUpperCase()}${idMatch[2]}`;
