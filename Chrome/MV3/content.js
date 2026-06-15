@@ -114,9 +114,6 @@
         logDebug(`Normalized product ID: ${normalizedProductId}`);
 
         const cachedData = await getCacheItem(normalizedProductId);
-        if (debugMode) {
-            logCacheMetrics();
-        }
 
         if (cachedData) {
             logDebug(`Cache hit for product ID: ${normalizedProductId}`, cachedData);
