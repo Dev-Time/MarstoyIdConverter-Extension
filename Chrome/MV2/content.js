@@ -52,6 +52,7 @@
     }
 
     function logCacheMetrics() {
+        if (!debugMode) return;
         if (!(typeof chrome !== 'undefined' && chrome.storage)) return;
         chrome.storage.local.get(null, (items) => {
             const productKeys = Object.keys(items).filter(key => key.startsWith('M'));

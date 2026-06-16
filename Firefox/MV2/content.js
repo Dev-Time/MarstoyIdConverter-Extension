@@ -44,6 +44,7 @@
     }
 
     async function logCacheMetrics() {
+        if (!debugMode) return;
         if (!(typeof browser !== 'undefined' && browser.storage && browser.storage.local)) return;
         try {
             const items = await browser.storage.local.get(null);
