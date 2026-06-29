@@ -346,11 +346,9 @@
         ];
         
         let nodes = [];
-        for (const selector of selectors) {
-            const found = document.querySelectorAll(selector);
-            if (found.length > 0) {
-                nodes = nodes.concat(Array.from(found));
-            }
+        const found = document.querySelectorAll(selectors.join(','));
+        if (found.length > 0) {
+            nodes = Array.from(found);
         }
         
         if (nodes.length === 0) {
