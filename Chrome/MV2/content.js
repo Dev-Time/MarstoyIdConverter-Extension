@@ -1,6 +1,7 @@
 (function () {
     const API_KEY = 'YOUR_API_KEY'; // Replace with your actual Rebrickable API key
     const debugMode = false; // Set to true to enable debug logs
+    const PRODUCT_TITLE_SELECTOR = 'h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title';
 
     // -------------------------
     // Logging
@@ -171,7 +172,7 @@
 
     function findProductImageElementFromTitle(titleEl) {
         // Product detail page
-        if (titleEl.matches('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
+        if (titleEl.matches(PRODUCT_TITLE_SELECTOR)) {
             return document.querySelector('img.media-gallery__image, .product-detail__media img, .product-single__photo img, img.product-featured-media');
         }
 
@@ -289,7 +290,7 @@
                 logDebug('Product image element not found or no image URL provided.');
             }
 
-            if (productTitleElement.matches('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
+            if (productTitleElement.matches(PRODUCT_TITLE_SELECTOR)) {
                 injectLegoDescription(productId, rebrickableData);
             }
         } else {
@@ -302,9 +303,7 @@
     // -------------------------
     function processProductPage() {
         logDebug('Processing product page...');
-        const productTitleElement = document.querySelector(
-            'h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title'
-        );
+        const productTitleElement = document.querySelector(PRODUCT_TITLE_SELECTOR);
         if (!productTitleElement) {
             logDebug('Product title element not found on product page.');
             return;
@@ -432,7 +431,7 @@
     // -------------------------
     function determineAndProcessPage() {
         // Run main product processor if applicable
-        if (document.querySelector('h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title')) {
+        if (document.querySelector(PRODUCT_TITLE_SELECTOR)) {
             processProductPage();
         }
         
@@ -470,7 +469,7 @@
             }
 
             const hasTargets = document.querySelector(
-                'li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title, .recommend-product-item-title, p.p-text-wish_desc, h1.product-detail__title, h1.product__title, h1.product-title, h1.product-info__header_title.dj_skin_product_title'
+                'li.product-block, .product-card-wrapper, h3.product__title, theme-product-card, .block-product-card, .block-product-title, .recommend-product-item-title, p.p-text-wish_desc, ' + PRODUCT_TITLE_SELECTOR
             );
             if (urlChanged || hasTargets) {
                 logDebug('DOM or URL changed: re-processing page elements');
